@@ -4,7 +4,6 @@ package storage
 import (
 	"context"
 	"crypto/sha256"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"github.com/jackc/pgx/v5"
@@ -14,8 +13,6 @@ import (
 	"time"
 )
 
-//go:embed schema.sql
-var schema string
 var idPattern = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 type Postgres struct{ pool *pgxpool.Pool }
@@ -41,28 +38,6 @@ func Open(ctx context.Context, dsn string) (*Postgres, error) {
 	return &Postgres{p}, nil
 }
 func (p *Postgres) Close() { p.pool.Close() }
-func (p *Postgres) Migrate(ctx context.Context) error {
-	tx, e := p.pool.Begin(ctx)
-	if e != nil {
-		return e
-	}
-	defer tx.Rollback(context.Background())
-	if _, e = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(82460121)"); e != nil {
-		return e
-	}
-	if _, e = tx.Exec(ctx, schema, pgx.QueryExecModeSimpleProtocol); e != nil {
-		return e
-	}
-	return tx.Commit(ctx)
-}
-func (p *Postgres) CheckSchema(ctx context.Context) error {
-	var ok bool
-	e := p.pool.QueryRow(ctx, "SELECT to_regclass('zalgps_v2.positions') IS NOT NULL AND to_regclass('zalgps_v2.devices') IS NOT NULL").Scan(&ok)
-	if e != nil || !ok {
-		return errors.New("database schema not ready")
-	}
-	return nil
-}
 func (p *Postgres) Enroll(ctx context.Context, tenant, device string, key [32]byte) error {
 	if !idPattern.MatchString(tenant) || !idPattern.MatchString(device) {
 		return errors.New("invalid identifier")
