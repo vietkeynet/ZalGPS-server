@@ -12,3 +12,19 @@ out
 build
 .vscode
 bin
+
+# Never commit local deployment credentials or customer captures.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.backup
+*.pcap
+*.pcapng
+*.sql.gz
+/private/
+/secrets/

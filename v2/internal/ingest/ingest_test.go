@@ -1,45 +1,61 @@
 package ingest
 
 import (
- "net/http/httptest"
- "strings"
- "testing"
- "time"
+	"context"
+	"errors"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
 )
 
-const token="0123456789abcdef0123456789abcdef"
-const good=`{"fixTime":"2026-11-27T00:00:00Z","latitude":20.4,"longitude":106.2,"speedKph":0}`
-func TestIngest(t *testing.T) {
- h,err:=New("tenant-a","device-a",token)
- if err!=nil {t.Fatal(err)}
- h.now=func()time.Time{return time.Date(2026,11,27,1,0,0,0,time.UTC)}
- request:=func(method,path,key,body string)*httptest.ResponseRecorder{
-  r:=httptest.NewRequest(method,path,strings.NewReader(body))
-  r.Header.Set("Authorization","Bearer "+key)
-  r.Header.Set("Content-Type","application/json")
-  w:=httptest.NewRecorder();h.ServeHTTP(w,r);return w
- }
- cases:=[]struct{name,method,path,key,body string; status int}{
-  {"no token","POST","/v2/positions","",good,401},
-  {"empty latest","GET","/v2/positions/latest",token,"",404},
-  {"invalid coordinate","POST","/v2/positions",token,strings.Replace(good,"20.4","91",1),422},
-  {"missing coordinate","POST","/v2/positions",token,`{"fixTime":"2026-11-27T00:00:00Z","longitude":0}`,422},
-  {"spoof tenant","POST","/v2/positions",token,strings.Replace(good,"{",`{"tenantId":"other",`,1),400},
-  {"extra JSON","POST","/v2/positions",token,good+"{}",400},
-  {"oversized","POST","/v2/positions",token,good+strings.Repeat(" ",5000),413},
-  {"valid","POST","/v2/positions",token,good,202},
-  {"duplicate","POST","/v2/positions",token,good,409},
-  {"late","POST","/v2/positions",token,strings.Replace(good,"2026-11-27T00","2026-11-26T00",1),409},
-  {"latest unauthorized","GET","/v2/positions/latest","wrong","",401},
-  {"latest","GET","/v2/positions/latest",token,"",200},
- }
- for _,tc:=range cases {t.Run(tc.name,func(t *testing.T){
-  w:=request(tc.method,tc.path,tc.key,tc.body)
-  if w.Code!=tc.status {t.Fatalf("got %d want %d: %s",w.Code,tc.status,w.Body.String())}
-  if tc.name=="latest" && (!strings.Contains(w.Body.String(),`"tenantId":"tenant-a"`)||!strings.Contains(w.Body.String(),`"deviceId":"device-a"`)){t.Fatal(w.Body.String())}
- })}
+type fakeStore struct {
+	err       error
+	duplicate bool
+	calls     int
 }
-func TestEnrollment(t *testing.T) {
- if _,err:=New("t","d","short");err==nil {t.Fatal("accepted short token")}
- if _,err:=New("","d",token);err==nil {t.Fatal("accepted empty tenant")}
+
+func (f *fakeStore) Accept(_ context.Context, _ [32]byte, _ Position, _ time.Time) (bool, error) {
+	f.calls++
+	return !f.duplicate, f.err
+}
+func (f *fakeStore) Latest(context.Context, [32]byte) (Record, error) { return Record{}, f.err }
+func TestIngest(t *testing.T) {
+	token := strings.Repeat("ab", 32)
+	good := `{"fixTime":"2026-11-27T00:00:00Z","latitude":0,"longitude":0,"speedKph":0}`
+	cases := []struct {
+		name, key, body string
+		err             error
+		duplicate       bool
+		status, calls   int
+	}{
+		{"no token", "", good, nil, false, 401, 0},
+		{"invalid coordinate", token, strings.Replace(good, "latitude\":0", "latitude\":91", 1), nil, false, 422, 0},
+		{"missing coordinate", token, `{"fixTime":"2026-11-27T00:00:00Z","longitude":0}`, nil, false, 422, 0},
+		{"spoof tenant", token, strings.Replace(good, "{", `{"tenantId":"other",`, 1), nil, false, 400, 0},
+		{"extra JSON", token, good + "{}", nil, false, 400, 0},
+		{"oversized", token, good + strings.Repeat(" ", 5000), nil, false, 413, 0},
+		{"valid", token, good, nil, false, 202, 1},
+		{"duplicate", token, good, nil, true, 200, 1},
+		{"unauthorized", token, good, ErrUnauthorized, false, 401, 1},
+		{"storage error", token, good, errors.New("internal diagnostic"), false, 503, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeStore{err: tc.err, duplicate: tc.duplicate}
+			h := New(f)
+			h.now = func() time.Time { return time.Date(2026, 11, 27, 1, 0, 0, 0, time.UTC) }
+			r := httptest.NewRequest("POST", "/v2/positions", strings.NewReader(tc.body))
+			r.Header.Set("Authorization", "Bearer "+tc.key)
+			r.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != tc.status || f.calls != tc.calls {
+				t.Fatalf("got %d calls %d want %d calls %d", w.Code, f.calls, tc.status, tc.calls)
+			}
+			if strings.Contains(w.Body.String(), "internal diagnostic") {
+				t.Fatal("leaked error")
+			}
+		})
+	}
 }
