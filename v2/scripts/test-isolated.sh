@@ -9,6 +9,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 for tool in go pg_config mktemp timeout df awk; do
     command -v "$tool" >/dev/null || die "Missing prerequisite: $tool"
 done
+command -v psql >/dev/null || die "Missing prerequisite: psql"
 pgbin=$(pg_config --bindir)
 for tool in initdb pg_ctl postgres; do
     [[ -x "$pgbin/$tool" ]] || die "Missing PostgreSQL tool: $tool"
@@ -44,11 +45,29 @@ trap 'exit 143' TERM
 mkdir -m 700 "$scratch/socket"
 # Keep the local Unix socket path within common Linux sockaddr_un limits.
 (( ${#scratch} + 24 < 104 )) || die "Test scratch path is too long."
-# Ignore existing PostgreSQL client/service settings; explicitly use the new test role and socket.
+# Ignore existing PostgreSQL client/service settings; bootstrap only through private Unix socket.
 unset PGHOST PGHOSTADDR PGPORT PGDATABASE PGUSER PGPASSWORD PGPASSFILE PGSERVICE PGSERVICEFILE PGOPTIONS PGSSLMODE PGSSLROOTCERT PGSSLCERT PGSSLKEY PGCONNECT_TIMEOUT PGAPPNAME PGTARGETSESSIONATTRS
-"$pgbin/initdb" -D "$scratch/db" -U zalgps_test --auth-local=trust --auth-host=reject --no-locale --encoding=UTF8 >"$scratch/init.log" 2>&1
+"$pgbin/initdb" -D "$scratch/db" -U zalgps_bootstrap --auth-local=trust --auth-host=reject --no-locale --encoding=UTF8 >"$scratch/init.log" 2>&1
 "$pgbin/pg_ctl" -D "$scratch/db" -l "$scratch/server.log" -o "-c listen_addresses='' -c unix_socket_directories=$scratch/socket -c unix_socket_permissions=0700 -p 5432 -c shared_buffers=64MB -c max_connections=20 -c work_mem=4MB" -w -t 30 start
-export ZALGPS_TEST_DATABASE_URL="host=$scratch/socket port=5432 dbname=postgres user=zalgps_test sslmode=disable"
+"$pgbin/psql" -X -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d postgres <<'SQL'
+CREATE ROLE zalgps_functions NOLOGIN;
+CREATE ROLE zalgps_migrator LOGIN CREATEDB;
+CREATE ROLE zalgps_provisioner LOGIN;
+CREATE ROLE zalgps_runtime LOGIN;
+GRANT zalgps_functions TO zalgps_migrator;
+CREATE ROLE zalgps_test_schema_create NOLOGIN;
+GRANT zalgps_test_schema_create TO zalgps_runtime;
+CREATE DATABASE zalgps_test OWNER zalgps_migrator;
+SQL
+"$pgbin/psql" -X -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d zalgps_test <<'SQL'
+GRANT CONNECT ON DATABASE zalgps_test TO zalgps_runtime, zalgps_provisioner;
+SQL
+conn="host=$scratch/socket port=5432 dbname=zalgps_test sslmode=disable"
+export ZALGPS_MIGRATOR_DATABASE_URL="$conn user=zalgps_migrator"
+export ZALGPS_PROVISIONER_DATABASE_URL="$conn user=zalgps_provisioner"
+export ZALGPS_RUNTIME_DATABASE_URL="$conn user=zalgps_runtime"
+export ZALGPS_TEST_DATABASE_URL="$conn user=zalgps_migrator"
+export ZALGPS_REQUIRE_ROLE_TESTS=1
 export GOMAXPROCS=2 GOMEMLIMIT=1536MiB
 cd "$root"
 test -z "$(gofmt -l .)" || die "Go formatting check failed."

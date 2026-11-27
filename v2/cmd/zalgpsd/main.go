@@ -19,7 +19,12 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	db, e := storage.Open(ctx, os.Getenv("ZALGPS_DATABASE_URL"))
+	command := os.Args[1]
+	dsnName := map[string]string{"migrate": "ZALGPS_MIGRATOR_DATABASE_URL", "serve": "ZALGPS_RUNTIME_DATABASE_URL", "enroll": "ZALGPS_PROVISIONER_DATABASE_URL", "rotate": "ZALGPS_PROVISIONER_DATABASE_URL", "revoke": "ZALGPS_PROVISIONER_DATABASE_URL"}[command]
+	if dsnName == "" {
+		log.Fatal("unknown command")
+	}
+	db, e := storage.Open(ctx, os.Getenv(dsnName))
 	if e != nil {
 		log.Fatal("database unavailable or invalid configuration")
 	}
@@ -41,8 +46,8 @@ func main() {
 	case "revoke":
 		e = db.Revoke(ctx, t, d)
 	case "serve":
-		if e = db.CheckSchema(ctx); e != nil {
-			log.Fatal("database migration required")
+		if e = db.CheckRuntimeSchema(ctx); e != nil {
+			log.Fatal("database schema not ready")
 		}
 		cancel()
 		serve(ingest.New(db))
