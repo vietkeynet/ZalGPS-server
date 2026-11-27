@@ -15,8 +15,8 @@ go build -o bin/zalgpsd ./cmd/zalgpsd
 
 POST /v2/positions with Bearer token and application/json: fixTime RFC3339, latitude/longitude WGS84 and optional speedKph. GET /v2/positions/latest reads only the authenticated device. Use rotate or revoke with private environment variables; no HTTP admin enrollment endpoint.
 
-Run go test -race ./... and go vet ./... . Set ZALGPS_TEST_DATABASE_URL only to a disposable database to run integration tests. Durability assumes normal PostgreSQL fsync and durable storage. Versioned migrations, PostGIS, partitioning, RLS and user management remain future gates. Use a supported patched Go toolchain.
+Run go test -race ./... and go vet ./... . Set ZALGPS_TEST_DATABASE_URL only to a disposable database to run integration tests. Durability assumes normal PostgreSQL fsync and durable storage. Versioned migrations are implemented; see [database migrations](docs/migrations.md) for upgrade and checksum rules. Integration migration tests require a disposable PostgreSQL cluster and CREATEDB privilege. PostGIS, partitioning, RLS and user management remain future gates. Use a supported patched Go toolchain.
 
 ## Agent coordination
 
-Start with [AGENTS.md](AGENTS.md), [master roadmap](ROADMAP.md), [execution TODO](TODO.md), [deployment plan](docs/deployment.md), [acceptance gates](docs/acceptance.md), [protocol matrix](docs/protocol-matrix.md) and [handoff](docs/handoff.md). Public repository: do not commit private deployment details or real device data. Production is NOT READY.
+Start with [AGENTS.md](AGENTS.md), [master roadmap](ROADMAP.md), [execution TODO](TODO.md), [deployment plan](docs/deployment.md), [acceptance gates](docs/acceptance.md), [protocol matrix](docs/protocol-matrix.md) and [handoff](docs/handoff.md), [threat model](docs/security-threat-model.md). Public repository: do not commit private deployment details or real device data. Production is NOT READY.
