@@ -6,7 +6,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 test "$(id -u)" -ne 0 || { echo "Use an unprivileged user." >&2; exit 1; }
 test -r /sys/fs/cgroup/cgroup.controllers || { echo "cgroup v2 required." >&2; exit 1; }
 command -v systemd-run >/dev/null || { echo "systemd-run required." >&2; exit 1; }
-exec systemd-run --user --scope --property=MemoryMax=4G --property=CPUQuota=200% -- /bin/bash -eu -c '
+exec systemd-run --user --scope --expand-environment=no --property=MemoryMax=4G --property=CPUQuota=200% -- /bin/bash -eu -c '
     cg=$(awk -F: '\''$1 == 0 { print $3 }'\'' /proc/self/cgroup)
     case "$cg" in /*) ;; *) exit 1 ;; esac
     d="/sys/fs/cgroup$cg"
