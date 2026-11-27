@@ -14,7 +14,7 @@ Baseline 2026-11-27: implementation commit 8c245ce2b47e05cf427e7c6e73de227728276
 | DB-03 | P0 | READY | DB-01 | Core | PostGIS WGS84 and spatial index, verify coordinate order and units; dedicated extension test DB |
 | DB-04 | P0 | TODO | DB-01, DB-02 | Core | Durable inbox + transactional outbox, bounded worker, per-device ordering, protocol-aware identity and replay; crash after commit and retry tests |
 | DB-05 | P0 | TODO | DB-04 | Core/QA | Latest-state table, history partitions, retention and legal hold; dedup across partitions, explain plans, migration and late-fix tests |
-| OPS-01 | P0 | READY | BASE-02 | Ops | Isolated dev/test environment recipe, resource quota and generic deployment profile; no private config in public repo |
+| OPS-01 | P0 | IN_PROGRESS | BASE-02 | Ops | Isolated dev/test environment recipe, resource quota and generic deployment profile; no private config in public repo |
 | OPS-02 | P0 | TODO | DB-02, DB-04, OPS-01 | Ops/QA | Dedicated staging, non-root runtime, least privilege, TLS, no public DB, readiness/metrics; backup + restore, DB outage and restart; verify RPO/RTO |
 | CORE-01 | P0 | TODO | DB-02, DB-04 | Core | Versioned normalized telemetry envelope (fix/server/device times, units, quality, optional sensors), registry contract and idempotency semantics |
 | PROTO-01 | P1 | TODO | CORE-01 | Protocol | Transport/codec SDK, session handling, bounded framing, ACK contract, safe command deny-default, fixture harness and simulator |
@@ -54,3 +54,5 @@ Record task ID, SHA, CI URL, test command/result, risk, and rollback. Do not mar
 
 ## Coordination checkpoint
 DB-01 DONE: integrated implementation 69090e0b0; exact-SHA [hosted CI #3 PASS](https://github.com/vietkeynet/ZalGPS-server/actions/runs/45992057716) at 5a9bc6f01, plus local PostgreSQL 16 race/integration, vet/build and scoped secret scan. DB-03 is now READY. SEC-03 threat model drafted and reviewed; current advisory checks and repeatable staged guard remain outstanding. SEC-01 private triage remains open; do not disclose individual findings.
+
+OPS-01 local test recipe verified and hosted CI 45993986791 passed. Resource limits are soft; hard quota and generic deployment profile remain open. SEC-03 dependency remediation and staged guard integrated pending exact-SHA CI.

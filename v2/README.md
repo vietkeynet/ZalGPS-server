@@ -17,6 +17,20 @@ POST /v2/positions with Bearer token and application/json: fixTime RFC3339, lati
 
 Run go test -race ./... and go vet ./... . Set ZALGPS_TEST_DATABASE_URL only to a disposable database to run integration tests. Durability assumes normal PostgreSQL fsync and durable storage. Versioned migrations are implemented; see [database migrations](docs/migrations.md) for upgrade and checksum rules. Integration migration tests require a disposable PostgreSQL cluster and CREATEDB privilege. PostGIS, partitioning, RLS and user management remain future gates. Use a supported patched Go toolchain.
 
+For an automated isolated PostgreSQL integration run, see [local test profile](docs/local-test.md).
+
+## Pre-commit secret guard
+
+Run the staged secret scan before committing:
+
+```sh
+./scripts/check-staged.sh
+```
+
+This runs `gitleaks git --staged --redact=100` (gitleaks 8.30.1). Behavior is fail-closed:
+missing tool, scan error, or any finding -> non-zero exit. No secret values or finding details are printed.
+Review findings privately; the script does not scan history. It is a manual gate, not an installed hook.
+
 ## Agent coordination
 
 Start with [AGENTS.md](AGENTS.md), [master roadmap](ROADMAP.md), [execution TODO](TODO.md), [deployment plan](docs/deployment.md), [acceptance gates](docs/acceptance.md), [protocol matrix](docs/protocol-matrix.md) and [handoff](docs/handoff.md), [threat model](docs/security-threat-model.md). Public repository: do not commit private deployment details or real device data. Production is NOT READY.

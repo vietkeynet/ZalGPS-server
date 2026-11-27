@@ -33,7 +33,8 @@
 - Storage uses parameterized SQL. Authentication resolves tenant/device from a non-revoked token hash; latest-position filtering and deduplication include tenant/device scope.
 - Existing ingest tests cover missing token, invalid/missing coordinates, spoofed tenant field, trailing JSON, oversized body, success, duplicate, unauthorized storage response, generic storage failure response without diagnostic leakage. PostgreSQL integration test covers duplicate token rejection, per-tenant same-device behavior, latest read isolation, rotation, and revocation when a disposable DB is configured.
 - V2 CI declares `contents: read`, uses `ubuntu-latest`, pins checkout and setup-go to commit SHAs with persisted credentials disabled, installs Go 1.26, and runs formatting, module verification, race-enabled Go tests, vet, and build. Workflow has no deploy secret references and does not use `pull_request_target`.
-- Dependency review evidence supplied for this task: `GOPROXY=off GOSUMDB=off go mod verify` passed using cached modules. Local Trivy offline scan passed with no vulnerability rows for the scanned V2 module only. These results do not prove absence of vulnerabilities.
+- Dependency review snapshot: Trivy advisory DB dated 2026-11-27 07:06:44 UTC (NextUpdate 2026-11-28 07:06:44; downloaded 07:59:48; scan 11:42:18Z), offline. Scope: one `go.mod`, eight packages; 24 advisories (2 critical, 12 high, 8 medium, 1 low, 1 unknown). Findings in that scanned older `go.mod` snapshot: pgx 5.7.6, 2 critical + 1 low; x/crypto 0.37.0, 15 advisories; x/text 0.24.0, 2 high. This is not a current-HEAD result; coordinator dependency patch is under review. The follow-up patch upgrades pgx to 5.9.2 and x/text to 0.44.0; x/crypto is no longer required after module tidy. Repeat scan with the same advisory snapshot reported zero entries across seven module packages. Local PostgreSQL 16 race/integration, vet and build passed. This is scoped dependency evidence, not a reachability or production security assessment.
+- Staged secret guard: `gitleaks git --staged --redact=100` (gitleaks 8.30.1), fail-closed on missing tool, scan error, or finding; output is limited to safe PASS/FAIL summary. Scans staged content only, not history.
 
 ## Risks not established or not verified
 
@@ -68,7 +69,7 @@ Start from tests in `v2/internal/ingest/ingest_test.go` and `v2/internal/storage
 
 ## CI and dependency review notes
 
-V2 CI has a narrow read-only repository permission declaration, SHA-pinned checkout, disabled checkout credential persistence, and no deploy secrets or `pull_request_target` observed. Workflow inspection is not a review of GitHub repository settings, runner isolation, or secret availability. Legacy Gradle workflow's missing permissions declaration and separate release workflow merit follow-up review. V2 offline verification and Trivy result are scoped to cached V2 modules; legacy scan did not run for the environment reasons stated above. No broad claim of dependency safety is warranted.
+V2 CI has a narrow read-only repository permission declaration, SHA-pinned checkout, disabled checkout credential persistence, and no deploy secrets or `pull_request_target` observed. Workflow inspection is not a review of GitHub repository settings, runner isolation, or secret availability. Legacy Gradle workflow's missing permissions declaration and separate release workflow merit follow-up review. The offline Trivy snapshot above is limited to an older `go.mod` state and must not be treated as an assessment of canonical HEAD. The follow-up dependency patch and scoped rescan are described above. Legacy scan did not run for the environment reasons stated above. No broad claim of dependency safety is warranted.
 
 ## Caveats
 
