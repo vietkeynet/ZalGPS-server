@@ -9,9 +9,9 @@ Baseline 2026-11-27: implementation commit 8c245ce2b47e05cf427e7c6e73de227728276
 | SEC-01 | P0 | IN_PROGRESS | BASE-02 | Security | Private full-ref history scan triage; false positives vs real credentials; revoke/rotate real keys before any history decision; no public sensitive details |
 | SEC-02 | P0 | READY | BASE-02 | Maintainer | Verify/enable supported secret scanning/push protection, private reporting, dependency alerts and suitable branch rules; record approval and safe negative test; no force push |
 | SEC-03 | P0 | IN_PROGRESS | BASE-02 | Security/CI | Threat model, CI least privilege, dependency/vulnerability checks, staged secret guard, review legacy workflows and action pins; no private runner |
-| DB-01 | P0 | IN_PROGRESS | BASE-02 | Core | Versioned immutable migrations with checksums, upgrade from pilot schema, fresh DB and migration concurrency tests; no destructive migration |
+| DB-01 | P0 | DONE | BASE-02 | Core | Versioned immutable migrations with checksums, upgrade from pilot schema, fresh DB and migration concurrency tests; no destructive migration |
 | DB-02 | P0 | TODO | DB-01, SEC-03 | Core/Security | Separate migrator/provisioner/runtime DB roles, RLS and constrained device auth; prove no cross-tenant direct SQL, cache or query leakage; connection pool context reset; no owner/BYPASSRLS runtime |
-| DB-03 | P0 | TODO | DB-01 | Core | PostGIS WGS84 and spatial index, verify coordinate order and units; dedicated extension test DB |
+| DB-03 | P0 | READY | DB-01 | Core | PostGIS WGS84 and spatial index, verify coordinate order and units; dedicated extension test DB |
 | DB-04 | P0 | TODO | DB-01, DB-02 | Core | Durable inbox + transactional outbox, bounded worker, per-device ordering, protocol-aware identity and replay; crash after commit and retry tests |
 | DB-05 | P0 | TODO | DB-04 | Core/QA | Latest-state table, history partitions, retention and legal hold; dedup across partitions, explain plans, migration and late-fix tests |
 | OPS-01 | P0 | READY | BASE-02 | Ops | Isolated dev/test environment recipe, resource quota and generic deployment profile; no private config in public repo |
@@ -53,4 +53,4 @@ Baseline 2026-11-27: implementation commit 8c245ce2b47e05cf427e7c6e73de227728276
 Record task ID, SHA, CI URL, test command/result, risk, and rollback. Do not mark DONE because code exists. Security scans are not proof of absence of vulnerabilities. Keep internal findings, hardware identifiers, network addresses and real data outside Git. Update TODO rather than creating duplicate issues.
 
 ## Coordination checkpoint
-DB-01 implementation integrated; local PostgreSQL 16 race/integration, vet/build and scoped secret scan passed. Exact-SHA hosted CI pending; retain IN_PROGRESS until verified. SEC-03 threat model drafted and reviewed; current advisory checks and repeatable staged guard remain outstanding. SEC-01 private triage remains open; do not disclose individual findings.
+DB-01 DONE: integrated implementation 69090e0b0; exact-SHA [hosted CI #3 PASS](https://github.com/vietkeynet/ZalGPS-server/actions/runs/45992057716) at 5a9bc6f01, plus local PostgreSQL 16 race/integration, vet/build and scoped secret scan. DB-03 is now READY. SEC-03 threat model drafted and reviewed; current advisory checks and repeatable staged guard remain outstanding. SEC-01 private triage remains open; do not disclose individual findings.
