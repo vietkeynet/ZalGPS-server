@@ -85,18 +85,29 @@ func TestPostGISMigrationUpgradeBackfill(t *testing.T) {
 	if len(ms) < 3 {
 		t.Fatalf("expected at least three migrations, got %d", len(ms))
 	}
-	for _, m := range ms[:2] {
-		if _, e = p.pool.Exec(ctx, m.sql, pgx.QueryExecModeSimpleProtocol); e != nil {
-			t.Fatal(e)
-		}
+	// Reproduce the migration engine's initial ledger creation before 0002
+	// grants runtime read access to it. Commit only the version-two fixture.
+	tx, e := p.pool.Begin(ctx)
+	if e != nil {
+		t.Fatal(e)
 	}
-	if _, e = p.pool.Exec(ctx, ledgerSQL); e != nil {
+	defer tx.Rollback(context.Background())
+	if _, e = tx.Exec(ctx, "CREATE SCHEMA zalgps_v2"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = tx.Exec(ctx, ledgerSQL); e != nil {
 		t.Fatal(e)
 	}
 	for _, m := range ms[:2] {
-		if _, e = p.pool.Exec(ctx, "INSERT INTO zalgps_v2.schema_migrations(version,name,checksum) VALUES($1,$2,$3)", m.version, m.name, m.checksum); e != nil {
+		if _, e = tx.Exec(ctx, m.sql, pgx.QueryExecModeSimpleProtocol); e != nil {
 			t.Fatal(e)
 		}
+		if _, e = tx.Exec(ctx, "INSERT INTO zalgps_v2.schema_migrations(version,name,checksum) VALUES($1,$2,$3)", m.version, m.name, m.checksum); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e = tx.Commit(ctx); e != nil {
+		t.Fatal(e)
 	}
 	if _, e = p.pool.Exec(ctx, `INSERT INTO zalgps_v2.tenants(id) VALUES('db03-backfill-test');
 	 INSERT INTO zalgps_v2.devices(tenant_id,device_id,token_hash) VALUES('db03-backfill-test','device',decode(repeat('01',32),'hex'));
