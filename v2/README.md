@@ -15,7 +15,7 @@ go build -o bin/zalgpsd ./cmd/zalgpsd
 
 POST /v2/positions with Bearer token and application/json: fixTime RFC3339, latitude/longitude WGS84 and optional speedKph. GET /v2/positions/latest reads only the authenticated device. Use rotate or revoke with private environment variables; no HTTP admin enrollment endpoint.
 
-Run go test -race ./... and go vet ./... . Set ZALGPS_TEST_DATABASE_URL only to a disposable database to run integration tests. Durability assumes normal PostgreSQL fsync and durable storage. Versioned migrations are implemented; see [database migrations](docs/migrations.md) for upgrade and checksum rules. Integration migration tests require a disposable PostgreSQL cluster and CREATEDB privilege. PostGIS, partitioning and user management remain future gates. Role-separated PostgreSQL integration tests require the disposable bootstrap described above. Use a supported patched Go toolchain.
+Run go test -race ./... and go vet ./... . Set ZALGPS_TEST_DATABASE_URL only to a disposable database to run integration tests. Durability assumes normal PostgreSQL fsync and durable storage. Versioned migrations are implemented; see [database migrations](docs/migrations.md) for upgrade and checksum rules. Integration migration tests require a disposable PostgreSQL cluster and CREATEDB privilege. PostGIS is required starting with migration 0003; see [DB-03 bootstrap](internal/storage/DB-03_POSTGIS.md). Partitioning and user management remain future gates. Role-separated PostgreSQL integration tests require the disposable bootstrap described above. Use a supported patched Go toolchain.
 
 For an automated isolated PostgreSQL integration run, see [local test profile](docs/local-test.md).
 

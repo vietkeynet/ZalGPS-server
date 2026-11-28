@@ -19,3 +19,11 @@ Prerequisites (enforced by DBA before migration):
 
 See `v2/internal/storage/DB-02_BOOTSTRAP.md` for the complete bootstrap recipe and verification queries.
 Integration tests create randomly named disposable databases on the configured test cluster (requires CREATEDB); they drop only the databases they create. Never point ZALGPS_TEST_DATABASE_URL at production or shared customer infrastructure. Tests cover fresh/repeated/concurrent migration, pre-ledger adoption preserving a synthetic row, drift rejection with no ledger left behind, changed checksum, missing core relation, empty existing ledger and native ingest. PostgreSQL 16 is the verified test target. Future nontransactional DDL needs a separately reviewed runner design.
+
+## PostGIS (DB-03)
+
+PostGIS is DBA-provisioned per database in schema `public`; migrations never install or own the extension. The DBA bootstrap must install PostGIS in `template1` so disposable databases created by tests inherit it, and in each existing target database before upgrade (for example, `CREATE EXTENSION postgis WITH SCHEMA public`). Migration 0003 fails closed unless extension exists in `public`, its `extversion` parses as three numeric components with optional `+` build metadata only (prerelease suffixes rejected), and stable numeric version is `>= 3.5.2` and `< 4.0.0`; `public` must deny CREATE to PUBLIC, `zalgps_runtime`, and `zalgps_provisioner`. Test candidate: PostgreSQL 16.9 / PostGIS 3.5.2; local smoke-tested image `postgis/postgis:16-3.5`, digest `sha256:94146ac37bc61e2322f88016056c5920729cb8c64c8542ed590af8fc2abdac07`.
+
+Tests must create the extension in `template1` before creating randomized databases. Migration remains transactional; do not add concurrent or nontransactional index DDL.
+
+Migration 0003 adds a stored geography point from existing longitude/latitude and a GiST index. This backfills the full positions table and can cause a table rewrite, WAL growth, and locks; pilot assumes bounded table size. Back up and verify restore before applying. Do not roll back to a binary that embeds only migrations 0001/0002 after 0003 is applied: it rejects the newer ledger. Recover by restoring the backup or using a reviewed compatible binary.

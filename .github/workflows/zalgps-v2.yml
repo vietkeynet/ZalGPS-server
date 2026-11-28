@@ -15,7 +15,7 @@ jobs:
         working-directory: v2
     services:
       postgres:
-        image: postgres:16
+        image: postgis/postgis:16-3.5@sha256:94146ac37bc61e2322f88016056c5920729cb8c64c8542ed590af8fc2abdac07 # PostgreSQL 16.9 / PostGIS 3.5.2, verified image
         env:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci-only-disposable
@@ -38,7 +38,7 @@ jobs:
           cache: false
       - run: test -z "$(gofmt -l .)"
       - run: go mod verify
-      - name: Bootstrap disposable database roles
+      - name: Bootstrap PostGIS and disposable database roles
         env:
           PGHOST: 127.0.0.1
           PGPORT: ${{ job.services.postgres.ports[5432] }}
@@ -46,6 +46,13 @@ jobs:
           PGPASSWORD: ci-only-disposable
           PGDATABASE: zalgps_ci
         run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -d template1 -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
+          version=$(psql -X -At -v ON_ERROR_STOP=1 -d template1 -c "SELECT extversion FROM pg_extension WHERE extname = 'postgis' AND extversion ~ '^[0-9]+\\.[0-9]+\\.[0-9]+(\\+[A-Za-z0-9.-]+)?$' AND string_to_array(split_part(extversion, '+', 1), '.')::int[] >= ARRAY[3,5,2] AND string_to_array(split_part(extversion, '+', 1), '.')::int[] < ARRAY[4,0,0];")
+          test -n "$version"
+          psql -X -v ON_ERROR_STOP=1 -d zalgps_ci -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
+          version=$(psql -X -At -v ON_ERROR_STOP=1 -d zalgps_ci -c "SELECT extversion FROM pg_extension WHERE extname = 'postgis' AND extversion ~ '^[0-9]+\\.[0-9]+\\.[0-9]+(\\+[A-Za-z0-9.-]+)?$' AND string_to_array(split_part(extversion, '+', 1), '.')::int[] >= ARRAY[3,5,2] AND string_to_array(split_part(extversion, '+', 1), '.')::int[] < ARRAY[4,0,0];")
+          test -n "$version"
           for role in MIGRATOR PROVISIONER RUNTIME; do
             value=$(openssl rand -hex 24)
             echo "::add-mask::$value"

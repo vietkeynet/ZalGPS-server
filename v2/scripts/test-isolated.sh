@@ -14,7 +14,9 @@ pgbin=$(pg_config --bindir)
 for tool in initdb pg_ctl postgres; do
     [[ -x "$pgbin/$tool" ]] || die "Missing PostgreSQL tool: $tool"
 done
-[[ $("$pgbin/postgres" --version) =~ PostgreSQL\)\ 16\. ]] || die "PostgreSQL 16 is required for this verified test profile."
+[[ $("$pgbin/postgres" --version) =~ PostgreSQL\)\ 16\. ]] || die "PostgreSQL 16 is required for this test profile."
+postgis_control=$(pg_config --sharedir)/extension/postgis.control
+[[ -r $postgis_control ]] || die "PostGIS extension files are missing ($postgis_control); install PostgreSQL 16 PostGIS packages locally before running isolated tests."
 base=${ZALGPS_TEST_TMPDIR:-/tmp}
 [[ -d "$base" && -w "$base" ]] || die "Test scratch directory must be writable."
 base=$(cd -- "$base" && pwd -P)
@@ -49,6 +51,9 @@ mkdir -m 700 "$scratch/socket"
 unset PGHOST PGHOSTADDR PGPORT PGDATABASE PGUSER PGPASSWORD PGPASSFILE PGSERVICE PGSERVICEFILE PGOPTIONS PGSSLMODE PGSSLROOTCERT PGSSLCERT PGSSLKEY PGCONNECT_TIMEOUT PGAPPNAME PGTARGETSESSIONATTRS
 "$pgbin/initdb" -D "$scratch/db" -U zalgps_bootstrap --auth-local=trust --auth-host=reject --no-locale --encoding=UTF8 >"$scratch/init.log" 2>&1
 "$pgbin/pg_ctl" -D "$scratch/db" -l "$scratch/server.log" -o "-c listen_addresses='' -c unix_socket_directories=$scratch/socket -c unix_socket_permissions=0700 -p 5432 -c shared_buffers=64MB -c max_connections=20 -c work_mem=4MB" -w -t 30 start
+"$pgbin/psql" -X -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d template1 -c 'CREATE EXTENSION postgis;'
+version=$("$pgbin/psql" -X -At -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d template1 -c "SELECT extversion FROM pg_extension WHERE extname = 'postgis' AND extversion ~ '^[0-9]+\\.[0-9]+\\.[0-9]+(\\+[A-Za-z0-9.-]+)?$' AND string_to_array(split_part(extversion, '+', 1), '.')::int[] >= ARRAY[3,5,2] AND string_to_array(split_part(extversion, '+', 1), '.')::int[] < ARRAY[4,0,0];")
+[[ -n $version ]] || die "PostGIS version must be >= 3.5.2 and < 4.0.0."
 "$pgbin/psql" -X -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d postgres <<'SQL'
 CREATE ROLE zalgps_functions NOLOGIN;
 CREATE ROLE zalgps_migrator LOGIN CREATEDB;
@@ -59,9 +64,9 @@ CREATE ROLE zalgps_test_schema_create NOLOGIN;
 GRANT zalgps_test_schema_create TO zalgps_runtime;
 CREATE DATABASE zalgps_test OWNER zalgps_migrator;
 SQL
-"$pgbin/psql" -X -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d zalgps_test <<'SQL'
-GRANT CONNECT ON DATABASE zalgps_test TO zalgps_runtime, zalgps_provisioner;
-SQL
+version=$("$pgbin/psql" -X -At -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d zalgps_test -c "SELECT extversion FROM pg_extension WHERE extname = 'postgis' AND extversion ~ '^[0-9]+\\.[0-9]+\\.[0-9]+(\\+[A-Za-z0-9.-]+)?$' AND string_to_array(split_part(extversion, '+', 1), '.')::int[] >= ARRAY[3,5,2] AND string_to_array(split_part(extversion, '+', 1), '.')::int[] < ARRAY[4,0,0];")
+[[ -n $version ]] || die "Inherited PostGIS version must be >= 3.5.2 and < 4.0.0."
+"$pgbin/psql" -X -v ON_ERROR_STOP=1 -h "$scratch/socket" -p 5432 -U zalgps_bootstrap -d postgres -c 'GRANT CONNECT ON DATABASE zalgps_test TO zalgps_runtime, zalgps_provisioner;'
 conn="host=$scratch/socket port=5432 dbname=zalgps_test sslmode=disable"
 export ZALGPS_MIGRATOR_DATABASE_URL="$conn user=zalgps_migrator"
 export ZALGPS_PROVISIONER_DATABASE_URL="$conn user=zalgps_provisioner"

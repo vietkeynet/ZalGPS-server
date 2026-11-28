@@ -46,7 +46,7 @@ func TestPostgresIntegration(t *testing.T) {
 		migrator.Close()
 		t.Fatal(e)
 	}
-	migrator.Close()
+	defer migrator.Close()
 	runtime, e := Open(ctx, runtimeDSN)
 	if e != nil {
 		t.Fatal(e)
@@ -77,11 +77,16 @@ func TestPostgresIntegration(t *testing.T) {
 	if e = provisioner.Enroll(ctx, b, "other-device", ka); e == nil {
 		t.Fatal("duplicate token allowed")
 	}
-	lat, lon := 0.0, 0.0
+	lat, lon := -45.25, 12.5
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	pos := ingest.Position{FixTime: now, Latitude: &lat, Longitude: &lon}
 	if ok, e := runtime.Accept(ctx, ka, pos, now); e != nil || !ok {
 		t.Fatalf("insert: %v %v", ok, e)
+	}
+	var x, y float64
+	var srid int
+	if e = migrator.pool.QueryRow(ctx, `SELECT public.ST_X(location::public.geometry), public.ST_Y(location::public.geometry), public.ST_SRID(location::public.geometry) FROM zalgps_v2.positions WHERE tenant_id=$1 AND device_id='same-device'`, a).Scan(&x, &y, &srid); e != nil || x != lon || y != lat || srid != 4326 {
+		t.Fatalf("ingest spatial projection mismatch: %v", e)
 	}
 	if ok, e := runtime.Accept(ctx, ka, pos, now); e != nil || ok {
 		t.Fatalf("duplicate: %v %v", ok, e)
@@ -188,6 +193,16 @@ func TestPostgresDirectFunctionDeny(t *testing.T) {
 			if !errors.As(err, &pgErr) || pgErr.Code != "42501" {
 				pool.Close()
 				t.Fatalf("%s authenticate_device returned unexpected error class", role)
+			}
+		}
+		if _, err = pool.Exec(ctx, "SELECT location FROM zalgps_v2.positions LIMIT 1"); err == nil {
+			pool.Close()
+			t.Fatalf("%s unexpectedly read positions.location", role)
+		} else {
+			var pgErr *pgconn.PgError
+			if !errors.As(err, &pgErr) || pgErr.Code != "42501" {
+				pool.Close()
+				t.Fatalf("%s location read returned unexpected error class", role)
 			}
 		}
 		pool.Close()
